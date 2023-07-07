@@ -101,7 +101,7 @@ class Processor:
         self.print_buffer = io.StringIO() # fake stdout
 
         pattern_pi_beg = r'<\?\s*' + pi_target + r'\s'
-        pattern_pi_tag = pattern_pi_beg + r'(.+)\?>'
+        pattern_pi_tag = pattern_pi_beg + r'(.+?)\?>'
         self.pattern_pi_beg = re.compile(pattern_pi_beg)
         self.pattern_pi_tag = re.compile(pattern_pi_tag)
 
@@ -186,11 +186,6 @@ class Processor:
                 else:
                     to_stream.write(res)
 
-            def replace_inline_pi(m: re.Match) -> str:
-                s = exec_and_dump(m[1], None)
-                assert s is not None
-                return s
-
             for line in in_stream:
                 line_num += 1
 
@@ -208,15 +203,16 @@ class Processor:
 
                 if line.find('<?') != -1: # possible PI in current line
                     this_pi_tag_beg_ln = line_num
-                    line = self.pattern_pi_tag.sub(replace_inline_pi, line)
+                    line = self.pattern_pi_tag \
+                        .sub(lambda m: exec_and_dump(m[1], None), line)
                     if (m := self.pattern_pi_beg.search(line)): # multi-line PI
-                        beg_pos = m.endpos - 1 # last char is a whitespace
+                        beg_pos = m.end(0) - 1 # last char is a whitespace
                         assert line[beg_pos].isspace()
                         in_pi_tag = True
                         this_pi_tag_beg_ln = line_num
                         Processor._clear_StringIO(self.code_buffer)
                         self.code_buffer.write(line[beg_pos:])
-                        line = line[:m.pos]
+                        line = line[:m.start()]
                 self.out_stream.write(line)
 
             if in_pi_tag:
